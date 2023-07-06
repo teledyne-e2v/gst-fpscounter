@@ -1,10 +1,10 @@
-# gst-whitebalance
+# gst-fpscounter
 
 # Version 1.0
 
 # About
 
-A Gstreamer plugin to control the white balance of the Optimum color module.
+A Gstreamer plugin to display the FPS of the pipeline
 
 # Dependencies
 
@@ -30,30 +30,6 @@ https://github.com/teledyne-e2v/Yocto-files
 
 ##### Note : You can also compile them on your installed distribution but it will take a long time to compile (Do it only if you miss one or two packages)
 
-## Optional (All the debayer process)
-
-- gstreamer1.0-plugins-bad (for the bayer2rgb plugin)
-- gst-gray2bayer 
-
-To install gst-gray2bayer, take a look at this git : https://github.com/teledyne-e2v/gst-bayer2rgb
-
-### Debian based system (Jetson): 
-
-```
-sudo apt install gstreamer1.0-plugins-bad
-
-```
-
-
-### Yocto based system (IMX): 
-
-Teledyne provide a bbappend file which provides all packages needed :
-https://github.com/teledyne-e2v/Yocto-files
-
-##### Note : You can also compile them on your installed distribution but it will take a long time to compile (Do it only if you miss one or two packages)
-
-
-
 
 # Compilation
 
@@ -61,7 +37,7 @@ https://github.com/teledyne-e2v/Yocto-files
 First you must make sure that your device's clock is correctly setup.
 Otherwise the compilation will fail.
 
-In the **gst-whitebalance** folder do:
+In the **gst-fpscounter** folder do:
 
 ```
 meson build
@@ -74,7 +50,7 @@ sudo ninja -C build install
 First you must make sure that your device's clock is correctly setup.
 Otherwise the compilation will fail.
 
-In the **gst-whitebalance** folder do:
+In the **gst-fpscounter** folder do:
 
 ```
 meson build
@@ -87,14 +63,14 @@ ninja -C build install
 To test if the plugin has been correctly install, do:
 ```
 export GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0/
-gst-inspect-1.0 whitebalance
+gst-inspect-1.0 fpscounter
 ```
 
-If the plugin failed to install the following message will be displayed: "No such element or plugin 'whitebalance'"
+If the plugin failed to install the following message will be displayed: "No such element or plugin 'fpscounter'"
 
 # Uninstall
 ```
-sudo rm /usr/local/lib/gstreamer-1.0/libgstwhitebalance.*
+sudo rm /usr/local/lib/gstreamer-1.0/libgstfpscounter.*
 ```
 # Usage
 
@@ -103,76 +79,34 @@ It is then required to tell gstreamer where to find it with the command:
 ```
 export GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0/
 ```
-The plugin can be used in any gstreamer pipeline by adding ```whitebalance```, the name of the plugin.
+The plugin can be used in any gstreamer pipeline by adding ```fpscounter```, the name of the plugin.
 
 ## Pipeline examples:
 
-### With debayer:
+### Simple example:
 ```
-gst-launch-1.0 v4l2src ! whitebalance ! 'video/x-raw,width=1920,height=1080,format=GRAY8' ! capssetter join=false caps="video/x-bayer,format=rggb"  ! bayer2rgb ! nvvidconv ! 'video/x-raw(memory:NVMM)' ! nv3dsink sync=0
-```
-### With debayer and boosting the blue:
-```
-gst-launch-1.0 v4l2src ! whitebalance blue=500 ! 'video/x-raw,width=1920,height=1080,format=GRAY8' ! capssetter join=false caps="video/x-bayer,format=rggb"  ! bayer2rgb ! nvvidconv ! 'video/x-raw(memory:NVMM)' ! nv3dsink sync=0
+gst-launch-1.0 v4l2src ! fpscounter ! 'video/x-raw,width=1920,height=1080,format=GRAY8' ! capssetter join=false caps="video/x-bayer,format=rggb"  ! bayer2rgb ! nvvidconv ! 'video/x-raw(memory:NVMM)' ! nv3dsink sync=0
 ```
 
-### With debayer, auto white balance, ROI and nvidia plugins (Jetsons only):
-```
-gst-launch-1.0 v4l2src ! whitebalance autowhitebalance=true roi1x=300 roi2x=600 roi1y=300 roi2y=700 ! 'video/x-raw,width=1920,height=1080,format=GRAY8' ! capssetter join=false caps="video/x-bayer,format=rggb"  ! bayer2rgb ! nvvidconv ! 'video/x-raw(memory:NVMM)' ! nv3dsink sync=0
-```
 
 #### Note : You can use the plugin without debayer or with another (only if the debayer is after in the pipeline)
 
 # Plugin parameters
-- autowhitebalance    : 
+
+- timestamp           : 
     - Flags: readable, writable
     - Type: Boolean
     - Default: false
-    - Descritption: Do an auto white balance
+    - Description: Measure the time between each frame         
+- framerate           : 
+    - Flags: readable
+    - Type: Integer
+    - Range: 0 - 1000 
+    - Default: 0 
+    - Description: Indicate the framerate
 
-- red:
-	- Flags: readable, writable
-    - Type: string
-    - Range: 0 - 1023 
-    - Default value: "0x02 0x36"
-    - Description: Control the value of red gain (should be a string of 9 characters as the default value)-  - green:
-- green:
-	- Flags: readable, writable
-    - Type: string
-    - Range: 0 - 1023 
-    - Default value: "0x01 0x00"
-    - Description: Control the value of green gain (should be a string of 9 characters as the default value)
-
-- blue:
-	- Flags: readable, writable
-    - Type: string
-    - Range: 0 - 1023 
-    - Default value: "0x01 0xFE"
-    - Description: Control the value of blue gain (should be a string of 9 characters as the default value)
--  roi1x               : 
-	- Flags: readable, writable
-	- Type: Integer. 
-	- Range: 0 - 1920 
-	- Default: 0 
-    - Description: Roi coordinates
-
--  roi1y               :
-	- Flags: readable, writable
-	- Integer. 
-	- Range: 0 - 1080 
-	- Default: 0 
-    - Description: Roi coordinates
-
--  roi2x               : 
-	- Flags: readable, writable
-	- Integer. 
-	- Range: 0 - 1920 
-	- Default: 1920 
-    - Description: Roi coordinates
-
--  roi2y               : 
-	- Flags: readable, writable
-	- Integer. 
-	- Range: 0 - 1080 
-	- Default: 1080 
-    - Description: Roi coordinates
+- silent              : 
+    - flags: writable
+    - Type: Boolean. 
+    - Default: false 
+    - Description: Control the std output
