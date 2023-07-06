@@ -2,7 +2,8 @@
  * GStreamer
  * Copyright (C) 2005 Thomas Vander Stichele <thomas@apestaart.org>
  * Copyright (C) 2005 Ronald S. Bultje <rbultje@ronald.bitfreak.net>
- * Copyright (C) 2022 Nicolas <<user@hostname.org>>
+
+ * Copyright (C) 2023 Teledyne e2V, Author : Loic Chevallier
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -21,26 +22,6 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
- *
- * Alternatively, the contents of this file may be used under the
- * GNU Lesser General Public License Version 2.1 (the "LGPL"), in
- * which case the following provisions apply instead of the ones
- * mentioned above:
- *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Library General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Library General Public License for more details.
- *
- * You should have received a copy of the GNU Library General Public
- * License along with this library; if not, write to the
- * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
- * Boston, MA 02111-1307, USA.
  */
 
 /**
@@ -78,7 +59,9 @@ enum
 enum
 {
     PROP_0,
-    PROP_TIMESTAMP
+    PROP_TIMESTAMP,
+    PROP_FRAMERATE,
+    PROP_SILENT
 };
 
 /* the capabilities of the inputs and outputs.
@@ -125,6 +108,12 @@ gst_fps_counter_class_init(GstfpsCounterClass *klass)
                                     g_param_spec_boolean("timestamp", "Timestamp", "Measure the time between each frame",
                                                          FALSE, G_PARAM_READWRITE));
 
+    g_object_class_install_property(gobject_class, PROP_SILENT,
+                                    g_param_spec_boolean("silent", "Silent", "Control the std output",
+                                                         FALSE, G_PARAM_WRITABLE));
+
+    g_object_class_install_property(gobject_class, PROP_FRAMERATE,
+                                    g_param_spec_int("framerate", "Framerate", "Indicate the framerate", 0,1000,0, G_PARAM_READABLE));
     gst_element_class_set_details_simple(gstelement_class,
                                          "fpsCounter",
                                          "FIXME:Generic",
@@ -158,6 +147,8 @@ gst_fps_counter_init(GstfpsCounter *filter)
     gst_element_add_pad(GST_ELEMENT(filter), filter->srcpad);
 
     filter->timestamp = FALSE;
+    filter->framerate = 0;
+    gettimeofday(&start, NULL);
 }
 
 static void
@@ -170,6 +161,9 @@ gst_fps_counter_set_property(GObject *object, guint prop_id,
     {
     case PROP_TIMESTAMP:
         filter->timestamp = g_value_get_boolean(value);
+        break;
+    case PROP_SILENT:
+        filter->silent = g_value_get_boolean(value);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -187,6 +181,9 @@ gst_fps_counter_get_property(GObject *object, guint prop_id,
     {
     case PROP_TIMESTAMP:
         g_value_set_boolean(value, filter->timestamp);
+        break;
+    case PROP_FRAMERATE:
+        g_value_set_int(value, filter->framerate);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
@@ -235,23 +232,20 @@ static GstFlowReturn
 gst_fps_counter_chain(GstPad *pad, GstObject *parent, GstBuffer *buf)
 {
     GstfpsCounter *filter;
+    static int frame = 0;
 
     filter = GST_FPSCOUNTER(parent);
 
-    static int frame = 0;
     
-    static struct timeval start, end;
+
     
     if (filter->timestamp == FALSE) // Measure FPS
     {
-        if (frame == 0)
-        {
-            gettimeofday(&start, NULL);
-        }
-        
+
+        double elapsed;
         gettimeofday(&end, NULL);
 
-        double elapsed = 
+        elapsed = 
             ((end.tv_sec   * 1000000 + end.tv_usec) -
              (start.tv_sec * 1000000 + start.tv_usec)) / 1000000.0f;
         
@@ -259,8 +253,11 @@ gst_fps_counter_chain(GstPad *pad, GstObject *parent, GstBuffer *buf)
         
         if (elapsed >= 1.0f)
         {
+	    if(!filter->silent)
             g_print("%f fps\n", frame / elapsed);
+	    filter->framerate =(int) (frame / elapsed);
             frame = 0;
+   	    gettimeofday(&start, NULL);
         }
     }
     else    // Measure inter frame time
@@ -271,12 +268,13 @@ gst_fps_counter_chain(GstPad *pad, GstObject *parent, GstBuffer *buf)
         }
         else
         {
+            double elapsed;
             gettimeofday(&end, NULL);
 
-            double elapsed = 
+            elapsed = 
                 ((end.tv_sec   * 1000000 + end.tv_usec) -
                  (start.tv_sec * 1000000 + start.tv_usec)) / 1000.0f;
-                 
+            	    if(!filter->silent)
             g_print("%f ms\n", elapsed);
             gettimeofday(&start, NULL);
         }
